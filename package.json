@@ -2,7 +2,7 @@
   "name": "mssql-agent-jobs",
   "displayName": "SQL Server Agent Jobs",
   "description": "View and monitor MS SQL Server Agent jobs, schedules and status",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "publisher": "vmatausic",
   "icon": "icon.png",
   "license": "MIT",

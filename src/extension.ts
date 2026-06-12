@@ -54,7 +54,8 @@ export function activate(context: vscode.ExtensionContext) {
         treeProvider.refresh();
         DashboardPanel.refreshIfOpen();
       },
-      openDashboard
+      openDashboard,
+      openJobOptions
     );
   }
 

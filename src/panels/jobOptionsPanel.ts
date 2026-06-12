@@ -15,6 +15,10 @@ import {
   OUTCOME_LABELS,
 } from "./webviewShared";
 
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
+}
+
 const FLOW_LABELS: Record<number, string> = {
   1: "Quit reporting success",
   2: "Quit reporting failure",
@@ -26,13 +30,15 @@ export class JobOptionsPanel {
   private static panels = new Map<string, JobOptionsPanel>();
   private panel: vscode.WebviewPanel;
   private details: JobDetails | undefined;
+  private nextJob: { jobId: string; name: string } | undefined;
 
   static show(
     jobService: JobService,
     jobId: string,
     jobName: string,
     onChanged: () => void,
-    onOpenDashboard: () => void
+    onOpenDashboard: () => void,
+    onOpenJob: (jobId: string, jobName: string) => void
   ): void {
     const existing = JobOptionsPanel.panels.get(jobId);
     if (existing) {
@@ -42,7 +48,7 @@ export class JobOptionsPanel {
     }
     JobOptionsPanel.panels.set(
       jobId,
-      new JobOptionsPanel(jobService, jobId, jobName, onChanged, onOpenDashboard)
+      new JobOptionsPanel(jobService, jobId, jobName, onChanged, onOpenDashboard, onOpenJob)
     );
   }
 
@@ -51,7 +57,8 @@ export class JobOptionsPanel {
     private jobId: string,
     jobName: string,
     private onChanged: () => void,
-    private onOpenDashboard: () => void
+    private onOpenDashboard: () => void,
+    private onOpenJob: (jobId: string, jobName: string) => void
   ) {
     this.panel = vscode.window.createWebviewPanel(
       "sqlAgentJobOptions",
@@ -75,6 +82,12 @@ export class JobOptionsPanel {
 
         case "openDashboard":
           this.onOpenDashboard();
+          break;
+
+        case "openNextJob":
+          if (this.nextJob) {
+            this.onOpenJob(this.nextJob.jobId, this.nextJob.name);
+          }
           break;
 
         case "saveJob": {
@@ -177,14 +190,18 @@ export class JobOptionsPanel {
 
   private async refresh(): Promise<void> {
     try {
-      const [details, schedules, steps, history, categories] = await Promise.all([
+      const [details, schedules, steps, history, categories, jobs] = await Promise.all([
         this.jobService.getJobDetails(this.jobId),
         this.jobService.getSchedules(this.jobId),
         this.jobService.getSteps(this.jobId),
         this.jobService.getHistory(this.jobId, 10),
         this.jobService.getCategories(),
+        this.jobService.getJobs(),
       ]);
       this.details = details;
+      const i = jobs.findIndex((j) => j.jobId === this.jobId);
+      const next = jobs.length > 1 ? jobs[(i + 1) % jobs.length] : undefined;
+      this.nextJob = next ? { jobId: next.jobId, name: next.name } : undefined;
       this.panel.title = `Job · ${details.name}`;
       this.panel.webview.html = this.render(details, schedules, steps, history, categories);
     } catch (e: any) {
@@ -299,10 +316,18 @@ export class JobOptionsPanel {
       font-size: 13px;
     }
     .back-link:hover { text-decoration: underline; background: none; }
+    .page-nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
   </style>
 </head>
 <body>
-  <button class="back-link" id="back-dashboard">← Dashboard</button>
+  <div class="page-nav">
+    <button class="back-link" id="back-dashboard">← Dashboard</button>
+    ${
+      this.nextJob
+        ? `<button class="back-link" id="next-job" title="${escapeHtml(this.nextJob.name)}">Next job: ${escapeHtml(truncate(this.nextJob.name, 30))} →</button>`
+        : ""
+    }
+  </div>
   <h1>${escapeHtml(d.name)}</h1>
   <dl class="meta">
     <dt>Created</dt><dd>${d.dateCreated ? d.dateCreated.toLocaleString() : "—"}</dd>
@@ -502,6 +527,12 @@ export class JobOptionsPanel {
     $("back-dashboard").addEventListener("click", () => {
       vscode.postMessage({ command: "openDashboard" });
     });
+    const nextBtn = $("next-job");
+    if (nextBtn) {
+      nextBtn.addEventListener("click", () => {
+        vscode.postMessage({ command: "openNextJob" });
+      });
+    }
 
     // ── Job options ──────────────────────────────────────────────────────────
     $("save-job").addEventListener("click", () => {
