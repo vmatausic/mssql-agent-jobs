@@ -71,7 +71,7 @@ SQL auth passwords are requested once and cached in VS Code's encrypted Secret S
 
 ### From VSIX
 
-Grab the `.vsix` from [Releases](../../releases) and either:
+Grab the `.vsix` from [Releases](https://github.com/vmatausic/mssql-agent-jobs/releases) and either:
 
 ```
 code --install-extension mssql-agent-jobs-x.y.z.vsix
