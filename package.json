@@ -6,6 +6,10 @@
   "publisher": "vmatausic",
   "icon": "icon.png",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vmatausic/mssql-agent-jobs.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
