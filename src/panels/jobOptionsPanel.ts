@@ -31,7 +31,8 @@ export class JobOptionsPanel {
     jobService: JobService,
     jobId: string,
     jobName: string,
-    onChanged: () => void
+    onChanged: () => void,
+    onOpenDashboard: () => void
   ): void {
     const existing = JobOptionsPanel.panels.get(jobId);
     if (existing) {
@@ -41,7 +42,7 @@ export class JobOptionsPanel {
     }
     JobOptionsPanel.panels.set(
       jobId,
-      new JobOptionsPanel(jobService, jobId, jobName, onChanged)
+      new JobOptionsPanel(jobService, jobId, jobName, onChanged, onOpenDashboard)
     );
   }
 
@@ -49,7 +50,8 @@ export class JobOptionsPanel {
     private jobService: JobService,
     private jobId: string,
     jobName: string,
-    private onChanged: () => void
+    private onChanged: () => void,
+    private onOpenDashboard: () => void
   ) {
     this.panel = vscode.window.createWebviewPanel(
       "sqlAgentJobOptions",
@@ -69,6 +71,10 @@ export class JobOptionsPanel {
       switch (m.command) {
         case "refresh":
           await this.refresh();
+          break;
+
+        case "openDashboard":
+          this.onOpenDashboard();
           break;
 
         case "saveJob": {
@@ -280,9 +286,23 @@ export class JobOptionsPanel {
     td.actions { white-space: nowrap; }
     textarea.code { font-family: var(--vscode-editor-font-family, monospace); }
     .form-note { color: var(--vscode-descriptionForeground); font-size: 12px; margin: 6px 0; }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0 0 10px 0;
+      color: var(--vscode-textLink-foreground);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .back-link:hover { text-decoration: underline; background: none; }
   </style>
 </head>
 <body>
+  <button class="back-link" id="back-dashboard">← Dashboard</button>
   <h1>${escapeHtml(d.name)}</h1>
   <dl class="meta">
     <dt>Created</dt><dd>${d.dateCreated ? d.dateCreated.toLocaleString() : "—"}</dd>
@@ -478,6 +498,10 @@ export class JobOptionsPanel {
     const data = JSON.parse(document.getElementById("data").textContent);
     const $ = (id) => document.getElementById(id);
     const show = (id, visible) => $(id).classList.toggle("hidden", !visible);
+
+    $("back-dashboard").addEventListener("click", () => {
+      vscode.postMessage({ command: "openDashboard" });
+    });
 
     // ── Job options ──────────────────────────────────────────────────────────
     $("save-job").addEventListener("click", () => {

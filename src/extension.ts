@@ -46,10 +46,16 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   function openJobOptions(jobId: string, jobName: string) {
-    JobOptionsPanel.show(jobService, jobId, jobName, () => {
-      treeProvider.refresh();
-      DashboardPanel.refreshIfOpen();
-    });
+    JobOptionsPanel.show(
+      jobService,
+      jobId,
+      jobName,
+      () => {
+        treeProvider.refresh();
+        DashboardPanel.refreshIfOpen();
+      },
+      openDashboard
+    );
   }
 
   function openDashboard() {
