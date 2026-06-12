@@ -1,0 +1,203 @@
+{
+  "name": "mssql-agent-jobs",
+  "displayName": "SQL Server Agent Jobs",
+  "description": "View and monitor MS SQL Server Agent jobs, schedules and status",
+  "version": "0.7.0",
+  "publisher": "vmatausic",
+  "icon": "icon.png",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "sql server",
+    "sql agent",
+    "mssql",
+    "jobs",
+    "scheduler",
+    "dba"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sqlAgentJobs",
+          "title": "SQL Agent Jobs",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "sqlAgentJobs": [
+        {
+          "id": "sqlAgentJobsExplorer",
+          "name": "Jobs"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "sqlAgentJobs.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "sqlAgentJobs.selectConnection",
+        "title": "Select Connection",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "sqlAgentJobs.forgetPassword",
+        "title": "SQL Agent Jobs: Forget Saved Password"
+      },
+      {
+        "command": "sqlAgentJobs.openDashboard",
+        "title": "Open Dashboard",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "sqlAgentJobs.openJobOptions",
+        "title": "Open Options"
+      },
+      {
+        "command": "sqlAgentJobs.enableJob",
+        "title": "Enable Job"
+      },
+      {
+        "command": "sqlAgentJobs.disableJob",
+        "title": "Disable Job"
+      },
+      {
+        "command": "sqlAgentJobs.startJob",
+        "title": "Start Job"
+      },
+      {
+        "command": "sqlAgentJobs.stopJob",
+        "title": "Stop Job"
+      },
+      {
+        "command": "sqlAgentJobs.addSchedule",
+        "title": "Add Schedule…"
+      },
+      {
+        "command": "sqlAgentJobs.enableSchedule",
+        "title": "Enable Schedule"
+      },
+      {
+        "command": "sqlAgentJobs.disableSchedule",
+        "title": "Disable Schedule"
+      },
+      {
+        "command": "sqlAgentJobs.deleteSchedule",
+        "title": "Remove Schedule"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "sqlAgentJobs.refresh",
+          "when": "view == sqlAgentJobsExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "sqlAgentJobs.selectConnection",
+          "when": "view == sqlAgentJobsExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "sqlAgentJobs.openDashboard",
+          "when": "view == sqlAgentJobsExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "sqlAgentJobs.openJobOptions",
+          "when": "view == sqlAgentJobsExplorer && viewItem =~ /^job-/",
+          "group": "navigation"
+        },
+        {
+          "command": "sqlAgentJobs.enableJob",
+          "when": "view == sqlAgentJobsExplorer && viewItem == job-disabled",
+          "group": "jobActions"
+        },
+        {
+          "command": "sqlAgentJobs.disableJob",
+          "when": "view == sqlAgentJobsExplorer && viewItem == job-enabled",
+          "group": "jobActions"
+        },
+        {
+          "command": "sqlAgentJobs.startJob",
+          "when": "view == sqlAgentJobsExplorer && viewItem == job-enabled",
+          "group": "jobActions"
+        },
+        {
+          "command": "sqlAgentJobs.stopJob",
+          "when": "view == sqlAgentJobsExplorer && viewItem == job-running",
+          "group": "jobActions"
+        },
+        {
+          "command": "sqlAgentJobs.addSchedule",
+          "when": "view == sqlAgentJobsExplorer && viewItem =~ /^job-/",
+          "group": "scheduleActions"
+        },
+        {
+          "command": "sqlAgentJobs.addSchedule",
+          "when": "view == sqlAgentJobsExplorer && viewItem == section-schedules",
+          "group": "scheduleActions"
+        },
+        {
+          "command": "sqlAgentJobs.enableSchedule",
+          "when": "view == sqlAgentJobsExplorer && viewItem == schedule-disabled",
+          "group": "scheduleActions"
+        },
+        {
+          "command": "sqlAgentJobs.disableSchedule",
+          "when": "view == sqlAgentJobsExplorer && viewItem == schedule-enabled",
+          "group": "scheduleActions"
+        },
+        {
+          "command": "sqlAgentJobs.deleteSchedule",
+          "when": "view == sqlAgentJobsExplorer && viewItem =~ /^schedule-/",
+          "group": "scheduleActions@9"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SQL Agent Jobs",
+      "properties": {
+        "sqlAgentJobs.autoRefreshInterval": {
+          "type": "number",
+          "default": 60,
+          "description": "Auto-refresh interval in seconds (0 to disable)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run check-types && node esbuild.js --production",
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc --noEmit",
+    "watch": "node esbuild.js --watch",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/mssql": "^12.3.0",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^8.0.0",
+    "sharp": "^0.35.1",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "mssql": "^10.0.4"
+  }
+}
