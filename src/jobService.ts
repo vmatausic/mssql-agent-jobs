@@ -391,7 +391,6 @@ export class JobService {
       alertId: number;
       name: string;
       enabled: number;
-      type: number;
       messageId: number;
       severity: number;
       performanceCondition: string;
@@ -402,7 +401,6 @@ export class JobService {
          a.id                                   AS alertId,
          a.name                                 AS name,
          a.enabled                              AS enabled,
-         a.type                                 AS type,
          a.message_id                           AS messageId,
          a.severity                             AS severity,
          ISNULL(a.performance_condition, '')    AS performanceCondition,
@@ -739,17 +737,13 @@ function decodeAgentDuration(packed: number): number {
 
 /** Human-readable trigger condition for an alert (error number, severity, or perf). */
 function describeAlert(a: {
-  type: number;
   messageId: number;
   severity: number;
   performanceCondition: string;
   databaseName: string;
 }): string {
   const scope = a.databaseName ? ` on ${a.databaseName}` : "";
-  if (a.type === 3) return "WMI event";
-  if (a.type === 2 || a.performanceCondition) {
-    return `Performance: ${a.performanceCondition || "condition"}`;
-  }
+  if (a.performanceCondition) return `Performance: ${a.performanceCondition}`;
   if (a.severity > 0) return `Severity ${a.severity}${scope}`;
   if (a.messageId > 0) return `Error ${a.messageId}${scope}`;
   return `SQL Server event${scope}`;

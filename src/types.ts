@@ -112,7 +112,6 @@ export interface JobAlert {
   alertId: number;
   name: string;
   enabled: boolean;
-  type: number; // 1=event, 2=performance condition, 3=WMI
   messageId: number;
   severity: number;
   performanceCondition: string;
