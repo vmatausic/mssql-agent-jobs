@@ -6,10 +6,13 @@ import {
   AgentJobSchedule,
   AgentJobStep,
   DailyStat,
+  JobAlert,
   JobDetails,
+  JobNotificationConfig,
   JobScheduleExportRow,
   JobOptionsUpdate,
   NewSchedule,
+  Operator,
   RecentRun,
   ScheduleConfig,
   StepConfig,
@@ -32,14 +35,28 @@ export class JobService {
    * Creates a job, targets it at the local agent, and returns the new job_id.
    * Steps and schedules are added afterward via the editor.
    */
-  async createJob(name: string, description: string): Promise<string> {
+  async createJob(
+    name: string,
+    description: string,
+    notify?: JobNotificationConfig
+  ): Promise<string> {
+    const emailLevel = notify?.emailLevel ?? 0;
+    const eventlogLevel = notify?.eventlogLevel ?? 0;
+    // Only pass notify args the caller actually set, so unset ones keep the
+    // proc's defaults. An e-mail level needs an operator to send to.
+    const extra =
+      (emailLevel > 0
+        ? ", @notify_level_email = @notifyEmail, @notify_email_operator_name = @emailOperator"
+        : "") +
+      (eventlogLevel > 0 ? ", @notify_level_eventlog = @notifyEventlog" : "");
+
     const rows = await this.conn.query<{ jobId: string }>(
       `SET NOCOUNT ON;
        DECLARE @jobId uniqueidentifier;
        EXEC msdb.dbo.sp_add_job
          @job_name    = @name,
          @description = @description,
-         @enabled     = 1,
+         @enabled     = 1${extra},
          @job_id      = @jobId OUTPUT;
        DECLARE @srv sysname = CAST(SERVERPROPERTY('ServerName') AS sysname);
        EXEC msdb.dbo.sp_add_jobserver @job_id = @jobId, @server_name = @srv;
@@ -51,6 +68,13 @@ export class JobService {
           mssql.NVarChar(512),
           description || "No description available."
         );
+        if (emailLevel > 0) {
+          req.input("notifyEmail", mssql.Int, emailLevel);
+          req.input("emailOperator", mssql.NVarChar(128), notify?.emailOperator);
+        }
+        if (eventlogLevel > 0) {
+          req.input("notifyEventlog", mssql.Int, eventlogLevel);
+        }
       }
     );
     const jobId = rows[0]?.jobId;
@@ -262,9 +286,13 @@ export class JobService {
         j.date_created                        AS dateCreated,
         j.date_modified                       AS dateModified,
         ja.last_executed_step_date            AS lastRunDate,
-        ja.next_scheduled_run_date            AS nextRunDate
+        ja.next_scheduled_run_date            AS nextRunDate,
+        j.notify_level_email                  AS notifyLevelEmail,
+        ISNULL(oe.name, '')                   AS notifyEmailOperator,
+        j.notify_level_eventlog               AS notifyLevelEventlog
       FROM msdb.dbo.sysjobs j
       LEFT JOIN msdb.dbo.syscategories c ON j.category_id = c.category_id
+      LEFT JOIN msdb.dbo.sysoperators oe ON oe.id = j.notify_email_operator_id
       LEFT JOIN msdb.dbo.sysjobactivity ja
         ON  ja.job_id     = j.job_id
         AND ja.session_id = (
@@ -283,6 +311,9 @@ export class JobService {
       dateModified: Date | null;
       lastRunDate: Date | null;
       nextRunDate: Date | null;
+      notifyLevelEmail: number;
+      notifyEmailOperator: string;
+      notifyLevelEventlog: number;
     }>(sql, (req) => req.input("jobId", mssql.UniqueIdentifier, jobId));
 
     if (rows.length === 0) {
@@ -310,6 +341,20 @@ export class JobService {
       u.ownerLoginName !== undefined
         ? { name: "owner_login_name", type: mssql.NVarChar(128), value: u.ownerLoginName }
         : null,
+      u.notifyLevelEmail !== undefined
+        ? { name: "notify_level_email", type: mssql.Int, value: u.notifyLevelEmail }
+        : null,
+      // The operator is only valid (and required) when e-mail is switched on.
+      u.notifyLevelEmail !== undefined && u.notifyLevelEmail > 0 && u.notifyEmailOperatorName
+        ? {
+            name: "notify_email_operator_name",
+            type: mssql.NVarChar(128),
+            value: u.notifyEmailOperatorName,
+          }
+        : null,
+      u.notifyLevelEventlog !== undefined
+        ? { name: "notify_level_eventlog", type: mssql.Int, value: u.notifyLevelEventlog }
+        : null,
     ]);
   }
 
@@ -318,6 +363,61 @@ export class JobService {
       `SELECT name FROM msdb.dbo.syscategories WHERE category_class = 1 ORDER BY name`
     );
     return rows.map((r) => r.name);
+  }
+
+  /** Agent operators — the named recipients available for e-mail notification. */
+  async getOperators(): Promise<Operator[]> {
+    const rows = await this.conn.query<{
+      id: number;
+      name: string;
+      emailAddress: string;
+      enabled: number;
+    }>(
+      `SELECT id, name, ISNULL(email_address, '') AS emailAddress, enabled
+       FROM msdb.dbo.sysoperators
+       ORDER BY name`
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      emailAddress: r.emailAddress,
+      enabled: r.enabled === 1,
+    }));
+  }
+
+  /** Alerts whose response is to run this job (read-only — alerts live server-wide). */
+  async getJobAlerts(jobId: string): Promise<JobAlert[]> {
+    const rows = await this.conn.query<{
+      alertId: number;
+      name: string;
+      enabled: number;
+      type: number;
+      messageId: number;
+      severity: number;
+      performanceCondition: string;
+      databaseName: string;
+      hasNotification: number;
+    }>(
+      `SELECT
+         a.id                                   AS alertId,
+         a.name                                 AS name,
+         a.enabled                              AS enabled,
+         a.type                                 AS type,
+         a.message_id                           AS messageId,
+         a.severity                             AS severity,
+         ISNULL(a.performance_condition, '')    AS performanceCondition,
+         ISNULL(a.database_name, '')            AS databaseName,
+         a.has_notification                     AS hasNotification
+       FROM msdb.dbo.sysalerts a
+       WHERE a.job_id = @jobId
+       ORDER BY a.name`,
+      (req) => req.input("jobId", mssql.UniqueIdentifier, jobId)
+    );
+    return rows.map((r) => ({
+      ...r,
+      enabled: r.enabled === 1,
+      description: describeAlert(r),
+    }));
   }
 
   async getRecentRuns(limit = 30, days?: number): Promise<RecentRun[]> {
@@ -635,6 +735,24 @@ function decodeAgentDuration(packed: number): number {
   const m = Math.floor((packed % 10000) / 100);
   const s = packed % 100;
   return h * 3600 + m * 60 + s;
+}
+
+/** Human-readable trigger condition for an alert (error number, severity, or perf). */
+function describeAlert(a: {
+  type: number;
+  messageId: number;
+  severity: number;
+  performanceCondition: string;
+  databaseName: string;
+}): string {
+  const scope = a.databaseName ? ` on ${a.databaseName}` : "";
+  if (a.type === 3) return "WMI event";
+  if (a.type === 2 || a.performanceCondition) {
+    return `Performance: ${a.performanceCondition || "condition"}`;
+  }
+  if (a.severity > 0) return `Severity ${a.severity}${scope}`;
+  if (a.messageId > 0) return `Error ${a.messageId}${scope}`;
+  return `SQL Server event${scope}`;
 }
 
 function describeFrequency(r: {

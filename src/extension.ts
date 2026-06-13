@@ -4,7 +4,7 @@ import { JobService } from "./jobService";
 import { JobNode, JobTreeProvider, OptionsNode, ScheduleNode } from "./jobTreeProvider";
 import { DashboardPanel } from "./panels/dashboardPanel";
 import { JobOptionsPanel } from "./panels/jobOptionsPanel";
-import { NewSchedule } from "./types";
+import { JobNotificationConfig, NewSchedule } from "./types";
 
 export function activate(context: vscode.ExtensionContext) {
   const connectionManager = new ConnectionManager(context.secrets);
@@ -90,8 +90,10 @@ export function activate(context: vscode.ExtensionContext) {
     });
     if (description === undefined) return; // cancelled
 
+    const notify = await promptJobNotification(jobService);
+
     try {
-      const jobId = await jobService.createJob(name.trim(), description);
+      const jobId = await jobService.createJob(name.trim(), description, notify);
       treeProvider.refresh();
       DashboardPanel.refreshIfOpen();
       vscode.window.showInformationMessage(
@@ -217,6 +219,48 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
+
+// ── Notification setup (job creation) ────────────────────────────────────────────
+
+/**
+ * Optional e-mail-notification step for the create-job flow. Skipped silently when
+ * the server has no operators (e-mail needs one). Event-log and other tweaks are
+ * left for the job editor.
+ */
+async function promptJobNotification(
+  jobService: JobService
+): Promise<JobNotificationConfig | undefined> {
+  let operators;
+  try {
+    operators = await jobService.getOperators();
+  } catch {
+    return undefined;
+  }
+  if (operators.length === 0) return undefined;
+
+  const pick = await vscode.window.showQuickPick(
+    [
+      { label: "No e-mail notification", operator: undefined as string | undefined },
+      ...operators.map((o) => ({
+        label: o.name,
+        description: o.emailAddress || undefined,
+        operator: o.name as string | undefined,
+      })),
+    ],
+    { placeHolder: "E-mail an operator when the job finishes? (optional)" }
+  );
+  if (!pick || !pick.operator) return undefined;
+
+  const when = await vscode.window.showQuickPick(
+    [
+      { label: "On failure", level: 2 },
+      { label: "On success", level: 1 },
+      { label: "On completion", level: 3 },
+    ],
+    { placeHolder: `Notify ${pick.operator} …` }
+  );
+  return { emailOperator: pick.operator, emailLevel: when ? when.level : 2 };
+}
 
 // ── Add-schedule wizard ─────────────────────────────────────────────────────────
 

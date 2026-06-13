@@ -45,6 +45,8 @@ A view in the Activity Bar showing all SQL Agent jobs with color-coded status ic
 Click **Options** under any job (or any dashboard row) to open the editor in the main window:
 
 - **Job options** — name, category, owner, enabled, description
+- **Notifications** — e-mail an operator and/or write to the Windows Application event log on success, failure, or completion (operators are read live from `msdb.dbo.sysoperators`); can also be set up while creating a new job
+- **Alerts** — read-only list of the SQL Agent alerts that run this job when they fire, with each alert's trigger (error number, severity, or performance condition) and notification methods
 - **Schedules** — inline editor for daily/weekly/monthly recurrence, run-at time or repeat every N minutes/hours; enable, disable, or remove
 - **Steps** — add, edit, and delete steps: command text, subsystem (T-SQL / CmdExec / PowerShell), target database, on-success/on-failure flow control, and retry settings
 - **Run Job Now** + the last 10 runs with full agent messages

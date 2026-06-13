@@ -86,6 +86,39 @@ export interface JobOptionsUpdate {
   description: string;
   categoryName?: string;
   ownerLoginName?: string;
+  // Notifications — levels are 0=never, 1=on success, 2=on failure, 3=on completion.
+  notifyLevelEmail?: number;
+  notifyEmailOperatorName?: string;
+  notifyLevelEventlog?: number;
+}
+
+/** Notification settings that can be applied when a job is first created. */
+export interface JobNotificationConfig {
+  emailOperator?: string;
+  emailLevel?: number; // 0-3
+  eventlogLevel?: number; // 0-3
+}
+
+/** A SQL Server Agent operator — the recipient of job and alert notifications. */
+export interface Operator {
+  id: number;
+  name: string;
+  emailAddress: string;
+  enabled: boolean;
+}
+
+/** An alert whose response is to run a given job (sysalerts.job_id = job). */
+export interface JobAlert {
+  alertId: number;
+  name: string;
+  enabled: boolean;
+  type: number; // 1=event, 2=performance condition, 3=WMI
+  messageId: number;
+  severity: number;
+  performanceCondition: string;
+  databaseName: string;
+  hasNotification: number; // bitmask: 1=email, 2=pager, 4=net send
+  description: string;
 }
 
 export interface AgentJobHistoryRun {
@@ -107,6 +140,9 @@ export interface JobDetails {
   dateModified: Date | null;
   lastRunDate: Date | null;
   nextRunDate: Date | null;
+  notifyLevelEmail: number; // 0=never, 1=success, 2=failure, 3=completion
+  notifyEmailOperator: string;
+  notifyLevelEventlog: number;
 }
 
 export interface JobScheduleExportRow {

@@ -4,7 +4,9 @@ import {
   AgentJobHistoryRun,
   AgentJobSchedule,
   AgentJobStep,
+  JobAlert,
   JobDetails,
+  Operator,
 } from "../types";
 import {
   BASE_CSS,
@@ -25,6 +27,15 @@ const FLOW_LABELS: Record<number, string> = {
   3: "Go to next step",
   4: "Go to step…",
 };
+
+/** Decodes the sysalerts.has_notification bitmask into a readable list. */
+function describeNotify(mask: number): string {
+  const parts: string[] = [];
+  if (mask & 1) parts.push("E-mail");
+  if (mask & 2) parts.push("Pager");
+  if (mask & 4) parts.push("Net send");
+  return parts.length ? parts.join(", ") : "—";
+}
 
 export class JobOptionsPanel {
   private static panels = new Map<string, JobOptionsPanel>();
@@ -92,6 +103,14 @@ export class JobOptionsPanel {
 
         case "saveJob": {
           const cur = this.details;
+          const notifyLevelEmail = Number(m.notifyLevelEmail) || 0;
+          const notifyEmailOperator = String(m.notifyEmailOperator ?? "");
+          if (notifyLevelEmail > 0 && !notifyEmailOperator) {
+            vscode.window.showErrorMessage(
+              "Select an operator to e-mail, or turn off e-mail notification."
+            );
+            return;
+          }
           await this.jobService.updateJobOptions(this.jobId, {
             enabled: !!m.enabled,
             description: String(m.description ?? ""),
@@ -103,6 +122,10 @@ export class JobOptionsPanel {
                 : undefined,
             ownerLoginName:
               cur && m.owner && m.owner !== cur.owner ? String(m.owner) : undefined,
+            notifyLevelEmail,
+            notifyEmailOperatorName:
+              notifyLevelEmail > 0 ? notifyEmailOperator : undefined,
+            notifyLevelEventlog: Number(m.notifyLevelEventlog) || 0,
           });
           vscode.window.showInformationMessage("Job updated.");
           this.done();
@@ -190,20 +213,31 @@ export class JobOptionsPanel {
 
   private async refresh(): Promise<void> {
     try {
-      const [details, schedules, steps, history, categories, jobs] = await Promise.all([
-        this.jobService.getJobDetails(this.jobId),
-        this.jobService.getSchedules(this.jobId),
-        this.jobService.getSteps(this.jobId),
-        this.jobService.getHistory(this.jobId, 10),
-        this.jobService.getCategories(),
-        this.jobService.getJobs(),
-      ]);
+      const [details, schedules, steps, history, categories, jobs, operators, alerts] =
+        await Promise.all([
+          this.jobService.getJobDetails(this.jobId),
+          this.jobService.getSchedules(this.jobId),
+          this.jobService.getSteps(this.jobId),
+          this.jobService.getHistory(this.jobId, 10),
+          this.jobService.getCategories(),
+          this.jobService.getJobs(),
+          this.jobService.getOperators(),
+          this.jobService.getJobAlerts(this.jobId),
+        ]);
       this.details = details;
       const i = jobs.findIndex((j) => j.jobId === this.jobId);
       const next = jobs.length > 1 ? jobs[(i + 1) % jobs.length] : undefined;
       this.nextJob = next ? { jobId: next.jobId, name: next.name } : undefined;
       this.panel.title = `Job · ${details.name}`;
-      this.panel.webview.html = this.render(details, schedules, steps, history, categories);
+      this.panel.webview.html = this.render(
+        details,
+        schedules,
+        steps,
+        history,
+        categories,
+        operators,
+        alerts
+      );
     } catch (e: any) {
       this.panel.webview.html = `<!DOCTYPE html><html><body style="font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:20px">
         <p>Error loading job: ${escapeHtml(e.message)}</p></body></html>`;
@@ -215,7 +249,9 @@ export class JobOptionsPanel {
     schedules: AgentJobSchedule[],
     steps: AgentJobStep[],
     history: AgentJobHistoryRun[],
-    categories: string[]
+    categories: string[],
+    operators: Operator[],
+    alerts: JobAlert[]
   ): string {
     const nonce = getNonce();
     const dataJson = JSON.stringify({ schedules, steps }).replace(/</g, "\\u003c");
@@ -224,6 +260,36 @@ export class JobOptionsPanel {
       .map(
         (c) =>
           `<option value="${escapeHtml(c)}" ${c === d.categoryName ? "selected" : ""}>${escapeHtml(c)}</option>`
+      )
+      .join("");
+
+    const hasOperators = operators.length > 0;
+    const operatorOptions = operators
+      .map(
+        (o) =>
+          `<option value="${escapeHtml(o.name)}" ${o.name === d.notifyEmailOperator ? "selected" : ""}>${escapeHtml(o.name)}${o.emailAddress ? " (" + escapeHtml(o.emailAddress) + ")" : ""}</option>`
+      )
+      .join("");
+    const levelOptions = (sel: number) =>
+      [
+        [2, "On failure"],
+        [1, "On success"],
+        [3, "On completion"],
+      ]
+        .map(
+          ([v, label]) =>
+            `<option value="${v}" ${v === sel ? "selected" : ""}>${label}</option>`
+        )
+        .join("");
+
+    const alertRows = alerts
+      .map(
+        (a) => `
+        <tr>
+          <td><span class="dot ${a.enabled ? "dot-green" : "dot-grey"}"></span>${escapeHtml(a.name)}</td>
+          <td>${escapeHtml(a.description)}</td>
+          <td>${escapeHtml(describeNotify(a.hasNotification))}</td>
+        </tr>`
       )
       .join("");
 
@@ -287,6 +353,7 @@ export class JobOptionsPanel {
       background: var(--vscode-sideBar-background);
     }
     .editor h3 { margin: 0 0 10px 0; font-size: 1em; }
+    h3.subhead { font-size: 1em; font-weight: 600; margin: 20px 0 4px 0; }
     .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
     .row .field { flex: 1; min-width: 140px; }
     .field input[type="number"] { width: 80px; }
@@ -359,6 +426,38 @@ export class JobOptionsPanel {
     <label for="j-description">Description</label>
     <textarea id="j-description" rows="3">${escapeHtml(d.description)}</textarea>
   </div>
+
+  <h3 class="subhead">Notifications</h3>
+  ${
+    hasOperators
+      ? ""
+      : '<p class="form-note">No operators are defined on this server, so e-mail notification is unavailable. Create an operator (SSMS, or <code>sp_add_operator</code>) and Database Mail to enable it.</p>'
+  }
+  <div class="row">
+    <div class="field checkbox-row" style="flex:0">
+      <input type="checkbox" id="n-email" ${d.notifyLevelEmail > 0 ? "checked" : ""} ${hasOperators ? "" : "disabled"}>
+      <label for="n-email">E-mail an operator</label>
+    </div>
+    <div class="field">
+      <label for="n-email-op">Operator</label>
+      <select id="n-email-op" ${hasOperators ? "" : "disabled"}>${operatorOptions}</select>
+    </div>
+    <div class="field">
+      <label for="n-email-level">When</label>
+      <select id="n-email-level">${levelOptions(d.notifyLevelEmail > 0 ? d.notifyLevelEmail : 2)}</select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field checkbox-row" style="flex:0">
+      <input type="checkbox" id="n-eventlog" ${d.notifyLevelEventlog > 0 ? "checked" : ""}>
+      <label for="n-eventlog">Write to Windows event log</label>
+    </div>
+    <div class="field">
+      <label for="n-eventlog-level">When</label>
+      <select id="n-eventlog-level">${levelOptions(d.notifyLevelEventlog > 0 ? d.notifyLevelEventlog : 2)}</select>
+    </div>
+  </div>
+
   <div class="toolbar">
     <button id="save-job">Save Changes</button>
     <button id="run" class="secondary">Run Job Now</button>
@@ -507,6 +606,17 @@ export class JobOptionsPanel {
     </div>
   </div>
 
+  <h2>Alerts</h2>
+  <p class="muted" style="margin-top:-4px">Alerts that run this job when they fire. Alerts are server-wide — manage them in SSMS.</p>
+  ${
+    alerts.length === 0
+      ? '<p class="muted">No alerts run this job.</p>'
+      : `<table>
+          <thead><tr><th>Name</th><th>Trigger</th><th>Notifies operators by</th></tr></thead>
+          <tbody>${alertRows}</tbody>
+        </table>`
+  }
+
   <h2>Recent History</h2>
   ${
     history.length === 0
@@ -535,6 +645,16 @@ export class JobOptionsPanel {
     }
 
     // ── Job options ──────────────────────────────────────────────────────────
+    function syncNotify() {
+      const emailOn = $("n-email").checked;
+      $("n-email-op").disabled = !emailOn;
+      $("n-email-level").disabled = !emailOn;
+      $("n-eventlog-level").disabled = !$("n-eventlog").checked;
+    }
+    $("n-email").addEventListener("change", syncNotify);
+    $("n-eventlog").addEventListener("change", syncNotify);
+    syncNotify();
+
     $("save-job").addEventListener("click", () => {
       vscode.postMessage({
         command: "saveJob",
@@ -543,6 +663,9 @@ export class JobOptionsPanel {
         description: $("j-description").value,
         category: $("j-category").value,
         owner: $("j-owner").value.trim(),
+        notifyLevelEmail: $("n-email").checked ? Number($("n-email-level").value) : 0,
+        notifyEmailOperator: $("n-email-op").value,
+        notifyLevelEventlog: $("n-eventlog").checked ? Number($("n-eventlog-level").value) : 0,
       });
     });
     $("run").addEventListener("click", () => vscode.postMessage({ command: "runJob" }));
