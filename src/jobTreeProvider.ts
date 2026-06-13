@@ -8,6 +8,7 @@ import {
 } from "./types";
 
 type TreeNode =
+  | InstanceNode
   | JobNode
   | OptionsNode
   | SectionNode
@@ -22,6 +23,7 @@ export class JobTreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
   private jobs: AgentJob[] = [];
   private connectionLabel = "";
+  private instanceName = "";
 
   constructor(private jobService: JobService) {}
 
@@ -34,13 +36,24 @@ export class JobTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     this.refresh();
   }
 
+  setInstanceName(name: string): void {
+    this.instanceName = name;
+    this.refresh();
+  }
+
   getTreeItem(element: TreeNode): vscode.TreeItem {
     return element;
   }
 
   async getChildren(element?: TreeNode): Promise<TreeNode[]> {
     if (!element) {
-      return this.getRootNodes();
+      if (!this.connectionLabel) {
+        return [new InfoNode("No connection — click the plug icon to connect")];
+      }
+      return [new InstanceNode(this.instanceName || this.connectionLabel)];
+    }
+    if (element instanceof InstanceNode) {
+      return this.getJobNodes();
     }
     if (element instanceof JobNode) {
       return [
@@ -56,10 +69,7 @@ export class JobTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     return [];
   }
 
-  private async getRootNodes(): Promise<TreeNode[]> {
-    if (!this.connectionLabel) {
-      return [new InfoNode("No connection — click the plug icon to connect")];
-    }
+  private async getJobNodes(): Promise<TreeNode[]> {
     try {
       this.jobs = await this.jobService.getJobs();
     } catch (e: any) {
@@ -97,6 +107,17 @@ export class JobTreeProvider implements vscode.TreeDataProvider<TreeNode> {
 }
 
 // ── Tree node classes ──────────────────────────────────────────────────────────
+
+export class InstanceNode extends vscode.TreeItem {
+  constructor(public instanceName: string) {
+    super(instanceName, vscode.TreeItemCollapsibleState.Expanded);
+    // Stable id so VS Code preserves expand/collapse across auto-refreshes.
+    this.id = `instance:${instanceName}`;
+    this.iconPath = new vscode.ThemeIcon("server-environment");
+    this.contextValue = "instance";
+    this.tooltip = `Connected to ${instanceName}`;
+  }
+}
 
 export class JobNode extends vscode.TreeItem {
   constructor(public job: AgentJob) {

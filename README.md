@@ -17,6 +17,9 @@ for job options, schedules, and steps — everything you'd normally open SSMS fo
 
 ---
 
+This plugin is for people who do their work from VS Code but still have a need to check
+some of their SQL Server services. So, to save time, you can do it all from one program.
+
 ## Features
 
 ### 📊 Dashboard landing page
@@ -26,11 +29,13 @@ Opens automatically when you connect:
 - **Job list** — every job with live status, last run, and next run
 - **Recent history** — latest runs across all jobs with durations and messages
 - **Click any row** to jump straight into that job's editor
-- **Export** the job + schedule inventory as CSV, JSON, or Markdown
+- **New Job** and **Export** (job + schedule inventory as CSV, JSON, or Markdown) right from the toolbar
 
 ### 🌲 Job tree view
 A view in the Activity Bar showing all SQL Agent jobs with color-coded status icons:
 
+- The connected **SQL Server instance** sits at the top, with all jobs nested beneath it
+- Create a **New Job** from the instance row (inline ＋), the view title bar, or the dashboard
 - 🟢 Succeeded · 🔴 Failed · 🔵 Running (spinning) · ⚪ Disabled / never run
 - Expand a job for its **Schedules** (human-readable frequencies like *"Daily, every 4h"* or *"Weekly on Mon, Wed, Fri"*), **Steps**, and **History** (last 20 runs with error messages in tooltips)
 - Right-click actions: Enable / Disable / Start / Stop / Add Schedule

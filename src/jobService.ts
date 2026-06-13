@@ -20,6 +20,46 @@ type ProcParam = { name: string; type: mssql.ISqlTypeFactory | mssql.ISqlType; v
 export class JobService {
   constructor(private conn: ConnectionManager) {}
 
+  /** The connected SQL Server instance name (MACHINE or MACHINE\INSTANCE). */
+  async getServerName(): Promise<string> {
+    const rows = await this.conn.query<{ name: string }>(
+      `SELECT CAST(SERVERPROPERTY('ServerName') AS nvarchar(256)) AS name`
+    );
+    return rows[0]?.name ?? "";
+  }
+
+  /**
+   * Creates a job, targets it at the local agent, and returns the new job_id.
+   * Steps and schedules are added afterward via the editor.
+   */
+  async createJob(name: string, description: string): Promise<string> {
+    const rows = await this.conn.query<{ jobId: string }>(
+      `SET NOCOUNT ON;
+       DECLARE @jobId uniqueidentifier;
+       EXEC msdb.dbo.sp_add_job
+         @job_name    = @name,
+         @description = @description,
+         @enabled     = 1,
+         @job_id      = @jobId OUTPUT;
+       DECLARE @srv sysname = CAST(SERVERPROPERTY('ServerName') AS sysname);
+       EXEC msdb.dbo.sp_add_jobserver @job_id = @jobId, @server_name = @srv;
+       SELECT CONVERT(nvarchar(36), @jobId) AS jobId;`,
+      (req) => {
+        req.input("name", mssql.NVarChar(128), name);
+        req.input(
+          "description",
+          mssql.NVarChar(512),
+          description || "No description available."
+        );
+      }
+    );
+    const jobId = rows[0]?.jobId;
+    if (!jobId) {
+      throw new Error("Job was created but no id was returned.");
+    }
+    return jobId;
+  }
+
   async getJobs(): Promise<AgentJob[]> {
     const sql = `
       SELECT

@@ -18,7 +18,8 @@ export class DashboardPanel {
   static show(
     jobService: JobService,
     connectionLabel: string,
-    openJob: (jobId: string, jobName: string) => void
+    openJob: (jobId: string, jobName: string) => void,
+    onCreateJob: () => void
   ): void {
     if (DashboardPanel.current) {
       DashboardPanel.current.connectionLabel = connectionLabel;
@@ -27,7 +28,12 @@ export class DashboardPanel {
       DashboardPanel.current.refresh();
       return;
     }
-    DashboardPanel.current = new DashboardPanel(jobService, connectionLabel, openJob);
+    DashboardPanel.current = new DashboardPanel(
+      jobService,
+      connectionLabel,
+      openJob,
+      onCreateJob
+    );
   }
 
   static refreshIfOpen(): void {
@@ -37,7 +43,8 @@ export class DashboardPanel {
   private constructor(
     private jobService: JobService,
     private connectionLabel: string,
-    private openJob: (jobId: string, jobName: string) => void
+    private openJob: (jobId: string, jobName: string) => void,
+    private onCreateJob: () => void
   ) {
     this.panel = vscode.window.createWebviewPanel(
       "sqlAgentDashboard",
@@ -56,6 +63,7 @@ export class DashboardPanel {
         this.refresh();
       }
       if (m.command === "export") this.export();
+      if (m.command === "createJob") this.onCreateJob();
     });
     this.refresh();
   }
@@ -245,7 +253,8 @@ export class DashboardPanel {
 <body>
   <h1>SQL Server Agent — ${escapeHtml(this.connectionLabel)}</h1>
   <div class="toolbar">
-    <button id="refresh">Refresh</button>
+    <button id="new-job">＋ New Job</button>
+    <button id="refresh" class="secondary">Refresh</button>
     <button id="export" class="secondary">Export…</button>
     <span class="badge">${jobs.length} jobs</span>
     <span class="badge">${enabled} enabled</span>
@@ -260,6 +269,9 @@ export class DashboardPanel {
     });
     document.getElementById("export").addEventListener("click", () => {
       vscode.postMessage({ command: "export" });
+    });
+    document.getElementById("new-job").addEventListener("click", () => {
+      vscode.postMessage({ command: "createJob" });
     });
     const slider = document.getElementById("days-slider");
     if (slider) {

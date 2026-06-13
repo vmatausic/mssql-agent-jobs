@@ -68,8 +68,39 @@ export function activate(context: vscode.ExtensionContext) {
     DashboardPanel.show(
       jobService,
       profile.profileName || profile.server,
-      openJobOptions
+      openJobOptions,
+      createJob
     );
+  }
+
+  async function createJob() {
+    if (!connectionManager.isConnected()) {
+      vscode.window.showWarningMessage("Connect to a server first.");
+      return;
+    }
+    const name = await vscode.window.showInputBox({
+      prompt: "New job name",
+      ignoreFocusOut: true,
+      validateInput: (v) => (v.trim() ? undefined : "Name is required"),
+    });
+    if (!name) return;
+    const description = await vscode.window.showInputBox({
+      prompt: "Description (optional — press Enter to skip)",
+      ignoreFocusOut: true,
+    });
+    if (description === undefined) return; // cancelled
+
+    try {
+      const jobId = await jobService.createJob(name.trim(), description);
+      treeProvider.refresh();
+      DashboardPanel.refreshIfOpen();
+      vscode.window.showInformationMessage(
+        `Job "${name.trim()}" created. Add steps and a schedule next.`
+      );
+      openJobOptions(jobId, name.trim());
+    } catch (e: any) {
+      vscode.window.showErrorMessage(`Create job failed: ${e.message}`);
+    }
   }
 
   context.subscriptions.push(
@@ -89,8 +120,13 @@ export function activate(context: vscode.ExtensionContext) {
             const label = profile.profileName || profile.server;
             treeProvider.setConnectionLabel(label);
             treeView.title = `SQL Agent Jobs · ${label}`;
+            try {
+              treeProvider.setInstanceName((await jobService.getServerName()) || label);
+            } catch {
+              treeProvider.setInstanceName(label);
+            }
             startAutoRefresh();
-            DashboardPanel.show(jobService, label, openJobOptions);
+            DashboardPanel.show(jobService, label, openJobOptions, createJob);
           } catch (e: any) {
             vscode.window.showErrorMessage(`Connection failed: ${e.message}`);
           }
@@ -108,6 +144,8 @@ export function activate(context: vscode.ExtensionContext) {
     }),
 
     vscode.commands.registerCommand("sqlAgentJobs.openDashboard", openDashboard),
+
+    vscode.commands.registerCommand("sqlAgentJobs.createJob", createJob),
 
     vscode.commands.registerCommand(
       "sqlAgentJobs.openJobOptions",

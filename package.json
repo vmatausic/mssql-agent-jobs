@@ -2,7 +2,7 @@
   "name": "mssql-agent-jobs",
   "displayName": "SQL Server Agent Jobs",
   "description": "View and monitor MS SQL Server Agent jobs, schedules and status",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "publisher": "vmatausic",
   "icon": "icon.png",
   "license": "MIT",
@@ -69,6 +69,11 @@
         "title": "Open Options"
       },
       {
+        "command": "sqlAgentJobs.createJob",
+        "title": "New Job",
+        "icon": "$(add)"
+      },
+      {
         "command": "sqlAgentJobs.enableJob",
         "title": "Enable Job"
       },
@@ -117,9 +122,24 @@
           "command": "sqlAgentJobs.openDashboard",
           "when": "view == sqlAgentJobsExplorer",
           "group": "navigation"
+        },
+        {
+          "command": "sqlAgentJobs.createJob",
+          "when": "view == sqlAgentJobsExplorer",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
+        {
+          "command": "sqlAgentJobs.createJob",
+          "when": "view == sqlAgentJobsExplorer && viewItem == instance",
+          "group": "inline"
+        },
+        {
+          "command": "sqlAgentJobs.createJob",
+          "when": "view == sqlAgentJobsExplorer && viewItem == instance",
+          "group": "instanceActions"
+        },
         {
           "command": "sqlAgentJobs.openJobOptions",
           "when": "view == sqlAgentJobsExplorer && viewItem =~ /^job-/",
