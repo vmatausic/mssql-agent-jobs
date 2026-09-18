@@ -104,6 +104,17 @@ Press <kbd>F5</kbd> in VS Code to run the extension in a development host.
 |---|---|---|
 | `sqlAgentJobs.autoRefreshInterval` | `60` | Tree auto-refresh interval in seconds (`0` disables) |
 
+## Security
+
+The extension talks to `msdb` with the same permissions as your connection profile,
+and is built to stay within them:
+
+- **Parameterized queries throughout** — job names, step commands, and every other value are passed as bound parameters, never concatenated into SQL text
+- **Sandboxed webviews** — the dashboard and editor run under a strict Content-Security-Policy with a per-render nonce, every dynamic value is HTML-escaped, and the panels have no access to the local filesystem
+- **Credentials in Secret Storage** — SQL auth passwords live in VS Code's encrypted Secret Storage, never in settings or logs; clear them anytime with *SQL Agent Jobs: Forget Saved Password*
+- **Secure connection defaults** — encryption on and server-certificate validation on, unless the underlying mssql profile opts out
+- Declared as **supported in untrusted workspaces** — only reads Agent metadata over a connection you explicitly select
+
 ## Notes
 
 - A SQL Agent schedule can be **shared by several jobs** — editing or disabling it affects all of them (same behavior as SSMS)
@@ -112,7 +123,7 @@ Press <kbd>F5</kbd> in VS Code to run the extension in a development host.
 
 ## Tech
 
-TypeScript · VS Code Extension API (TreeView + Webview) · [mssql](https://www.npmjs.com/package/mssql) driver · esbuild (single ~500 KB VSIX)
+TypeScript · VS Code Extension API (TreeView + Webview) · [mssql](https://www.npmjs.com/package/mssql) v12 driver · esbuild single-file bundle
 
 ## License
 
