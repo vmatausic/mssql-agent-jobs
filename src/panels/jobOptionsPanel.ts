@@ -75,7 +75,9 @@ export class JobOptionsPanel {
       "sqlAgentJobOptions",
       `Job · ${jobName}`,
       vscode.ViewColumn.One,
-      { enableScripts: true }
+      // No local resources are loaded, so lock the webview out of the
+      // filesystem entirely (defense-in-depth alongside the CSP).
+      { enableScripts: true, localResourceRoots: [] }
     );
     this.panel.onDidDispose(() => {
       JobOptionsPanel.panels.delete(this.jobId);
