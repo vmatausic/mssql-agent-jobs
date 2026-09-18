@@ -8,3 +8,4 @@ esbuild.js
 .gitignore
 **/*.map
 *.vsix
+resources/marketplace-icon.svg

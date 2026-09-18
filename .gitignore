@@ -2,3 +2,7 @@ out/
 node_modules/
 *.vsix
 .claude/
+
+# Stray nested clone that lives inside the repo — never track it
+/mssql-agent-jobs/
+mssql-agent-jobs-hardening.patch
