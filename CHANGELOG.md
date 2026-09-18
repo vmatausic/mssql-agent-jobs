@@ -3,6 +3,25 @@
 All notable changes to the **SQL Server Agent Jobs** extension are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.2] — 2026-09-18
+
+### Changed
+- Updated the bundled [`mssql`](https://www.npmjs.com/package/mssql) driver to
+  **v12**, clearing transitive security advisories carried by the previous
+  driver's Azure Identity / MSAL / `uuid` dependencies.
+
+### Security
+- Both webviews (dashboard and job editor) are now locked out of the local
+  filesystem (`localResourceRoots: []`) as defense-in-depth alongside the
+  existing Content-Security-Policy.
+- Declared **support for untrusted workspaces** — the extension only reads SQL
+  Agent metadata over a connection the user explicitly selects and never executes
+  workspace files.
+
+### Housekeeping
+- Added `bugs` / `homepage` links to the manifest and stopped packaging the unused
+  marketplace icon in the VSIX.
+
 ## [0.9.1] — 2026-06-13
 
 ### Fixed
@@ -49,6 +68,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Initial release: dashboard with run statistics, job tree with live status, and a
   full editor for job options, schedules, and steps.
 
+[0.9.2]: https://github.com/vmatausic/mssql-agent-jobs/releases
 [0.9.1]: https://github.com/vmatausic/mssql-agent-jobs/releases
 [0.9.0]: https://github.com/vmatausic/mssql-agent-jobs/releases
 [0.8.0]: https://github.com/vmatausic/mssql-agent-jobs/releases
